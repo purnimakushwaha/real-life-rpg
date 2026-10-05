@@ -1,1177 +1,599 @@
-import random
 import json
-import re
+import random
 import ollama
 
 
 # =========================================================
-# SETTINGS
+# CONFIG
 # =========================================================
 
 MODEL = "llama3.2:latest"
 
 
 # =========================================================
-# GAME LOCATIONS
+# WORLD
 # =========================================================
 
 LOCATIONS = [
-    {
-        "name": "🌲 Whispering Forest",
-        "description": "The trees are whispering. One of them is definitely gossiping about you.",
-        "choices": [
-            "🌳 Talk to the suspicious tree",
-            "👣 Follow the glowing footprints",
-            "📦 Open the mysterious box"
-        ]
-    },
-    {
-        "name": "🍕 Pizza Kingdom",
-        "description": "You have entered a kingdom where pizza is treated like gold.",
-        "choices": [
-            "👑 Challenge the Pizza King",
-            "🍕 Enter the pizza contest",
-            "🧀 Investigate the golden pizza"
-        ]
-    },
-    {
-        "name": "🐸 Frog Academy",
-        "description": "A frog wearing glasses is waiting outside a very serious school.",
-        "choices": [
-            "🎓 Attend Frog Class",
-            "🧠 Take the frog quiz",
-            "🐸 Ask Professor Frog a question"
-        ]
-    },
-    {
-        "name": "🚀 Space Café",
-        "description": "A café is floating in space. Somehow, nobody thinks this is strange.",
-        "choices": [
-            "👽 Talk to the alien waiter",
-            "🍪 Order cosmic cookies",
-            "🔭 Look outside the window"
-        ]
-    },
-    {
-        "name": "🕵️ Mystery Museum",
-        "description": "Every statue is frozen... except one that seems to be looking directly at you.",
-        "choices": [
-            "🗿 Follow the moving statue",
-            "🖼️ Inspect the strange painting",
-            "🚪 Search for a secret door"
-        ]
-    },
-    {
-        "name": "🏰 Castle of Bad Ideas",
-        "description": "A sign says: 'Welcome! Please ignore the suspicious trapdoor.'",
-        "choices": [
-            "🚪 Open the trapdoor",
-            "🧙 Talk to the confused wizard",
-            "🔎 Search the castle"
-        ]
-    }
+    "Whispering Forest",
+    "Pizza Kingdom",
+    "Frog Academy",
+    "Space Café",
+    "Mystery Museum",
+    "Castle of Bad Ideas",
+    "Robot City",
+    "Crystal Cave",
+    "Sky Island",
+    "Time Traveler Station",
+]
+
+
+STARTER_ITEMS = [
+    "Magic Compass",
+    "Lucky Coin",
+    "Explorer Backpack",
 ]
 
 
 # =========================================================
-# FUNNY EVENTS
-# =========================================================
-
-FUNNY_EVENTS = [
-
-    (
-        "😂 A chicken suddenly appears and judges your decision.",
-        15,
-        3
-    ),
-
-    (
-        "🥔 You discover a potato wearing a tiny crown.",
-        20,
-        4
-    ),
-
-    (
-        "🤣 You tried to look heroic and walked directly into a tree.",
-        10,
-        2
-    ),
-
-    (
-        "🐸 A frog gives you motivational advice.",
-        20,
-        5
-    ),
-
-    (
-        "🎩 A mysterious NPC gives you a hat and disappears.",
-        25,
-        6
-    ),
-
-    (
-        "🍕 You discover emergency pizza.",
-        30,
-        8
-    ),
-
-    (
-        "🐔 A chicken follows you. You have no idea why.",
-        15,
-        3
-    ),
-
-    (
-        "😎 You accidentally look extremely cool for four seconds.",
-        25,
-        5
-    )
-]
-
-
-# =========================================================
-# QUICK KNOWLEDGE
-# =========================================================
-
-KNOWLEDGE_FACTS = [
-
-    "🌍 Earth is the only planet currently known to support life.",
-
-    "🚀 A day on Venus is longer than a year on Venus.",
-
-    "🐙 Octopuses have three hearts.",
-
-    "🌊 The Pacific Ocean is the largest ocean on Earth.",
-
-    "🧠 Your brain uses a surprisingly large amount of your body's energy.",
-
-    "🌱 Plants use sunlight, water and carbon dioxide to make food.",
-
-    "🪐 Saturn is less dense than water, so it would float in a huge enough bathtub.",
-
-    "🐝 Bees can communicate the location of food using movements called a waggle dance.",
-
-    "💡 Lightning can heat the surrounding air to temperatures hotter than the surface of the Sun.",
-
-    "🦒 A giraffe has the same number of neck bones as a human: seven."
-]
-
-
-# =========================================================
-# AI CALL
-#
-# IMPORTANT:
-# This function is only called for special AI moments.
+# OLLAMA
 # =========================================================
 
 def ask_ai(prompt):
+    """
+    Sends a prompt to Ollama and returns the text response.
+    """
 
-    try:
+    response = ollama.chat(
+        model=MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": """
+You are the Game Master of a fun, funny, safe real-life RPG adventure.
 
-        response = ollama.chat(
-            model=MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a funny game master. "
-                        "Use easy English. "
-                        "Keep responses very short. "
-                        "Make the player smile. "
-                        "Do not write long explanations."
-                    )
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            options={
-                "temperature": 0.9,
-                "num_predict": 120
-            }
-        )
+Your job is to create dynamic adventure challenges.
 
-        return response["message"]["content"]
+Rules:
+- Keep the adventure suitable for teenagers.
+- No dangerous real-world instructions.
+- No self-harm.
+- No sexual content.
+- No illegal activity instructions.
+- Challenges should be imaginative and game-like.
+- Always provide meaningful choices.
+- Choices should have different possible consequences.
+- Keep descriptions short and exciting.
+""",
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+    )
 
-    except Exception:
-
-        return None
+    return response["message"]["content"]
 
 
 # =========================================================
-# JSON HELPER
+# JSON EXTRACTION
 # =========================================================
 
 def extract_json(text):
+    """
+    Extract JSON from Ollama response even if Ollama puts
+    markdown/code fences around it.
+    """
 
     if not text:
         return None
 
     text = text.strip()
 
-    text = re.sub(
-        r"```json",
-        "",
-        text,
-        flags=re.IGNORECASE
-    )
+    # Remove markdown code fences
+    if text.startswith("```"):
+        text = text.replace("```json", "")
+        text = text.replace("```", "")
+        text = text.strip()
 
-    text = re.sub(
-        r"```",
-        "",
-        text
-    )
-
+    # Direct JSON
     try:
-
         return json.loads(text)
-
     except Exception:
-
         pass
 
-    match = re.search(
-        r"\{.*\}",
-        text,
-        re.DOTALL
-    )
+    # Try extracting first {...}
+    start = text.find("{")
+    end = text.rfind("}")
 
-    if match:
+    if start != -1 and end != -1 and end > start:
+        possible_json = text[start:end + 1]
 
         try:
-
-            return json.loads(
-                match.group(0)
-            )
-
+            return json.loads(possible_json)
         except Exception:
-
-            return None
+            pass
 
     return None
 
 
 # =========================================================
-# RANDOM LOCATION
+# FALLBACK
 # =========================================================
 
-def get_location():
+def fallback_adventure():
+    """
+    Used if Ollama is temporarily unavailable.
+    """
 
-    return random.choice(
-        LOCATIONS
-    )
-
-
-# =========================================================
-# CREATE ADVENTURE
-#
-# NO AI CALL HERE.
-# This makes game start instantly.
-# =========================================================
-
-def create_adventure():
-
-    location = get_location()
+    location = random.choice(LOCATIONS)
 
     return {
-
-        "location": location["name"],
-
-        "description": location["description"],
-
-        "choices": location["choices"],
-
-        "history": [],
-
-        "inventory": [],
-
-        "coins": 0,
-
-        "health": 100,
-
-        "xp": 0,
-
-        "turn": 1,
-
-        "active": True,
-
-        "knowledge_question": None,
-
-        "knowledge_answered": False,
-
-        "knowledge_correct": False,
-
-        "last_fact": "",
-
-        "last_event": "",
-
-        "ai_used": False
+        "location": location,
+        "challenge": (
+            f"You arrive at {location}. "
+            "Something strange is happening nearby..."
+        ),
+        "description": (
+            "A mysterious signal appears. "
+            "You need to decide what to do next."
+        ),
+        "choices": [
+            "Investigate the signal",
+            "Look around for clues",
+            "Ask someone nearby for help",
+            "Take a careful break and observe",
+        ],
     }
 
 
 # =========================================================
-# CHANGE LOCATION
-#
-# NO AI CALL.
+# CREATE FIRST ADVENTURE
 # =========================================================
 
-def next_location(adventure):
-
-    location = get_location()
-
-    adventure["location"] = (
-        location["name"]
-    )
-
-    adventure["description"] = (
-        location["description"]
-    )
-
-    adventure["choices"] = (
-        location["choices"]
-    )
-
-    adventure["knowledge_question"] = None
-
-    adventure["knowledge_answered"] = False
-
-    adventure["knowledge_correct"] = False
-
-    adventure["last_fact"] = ""
-
-
-# =========================================================
-# NORMAL FAST ACTIONS
-# =========================================================
-
-def normal_action(
-    adventure,
-    choice
-):
-
-    choice_lower = choice.lower()
-
-    xp = random.randint(
-        10,
-        25
-    )
-
-    coins = random.randint(
-        1,
-        5
-    )
-
-    event = ""
-
-    item = ""
-
-    # -----------------------------------------------------
-    # TREE
-    # -----------------------------------------------------
-
-    if "tree" in choice_lower:
-
-        event = (
-            "🌳 The tree looks at you and whispers:\n\n"
-            "\"Drink water. Touch grass. Avoid suspicious trees.\"\n\n"
-            "Honestly... solid advice."
-        )
-
-        xp = 25
-
-    # -----------------------------------------------------
-    # FOOTPRINTS
-    # -----------------------------------------------------
-
-    elif "footprint" in choice_lower:
-
-        event = (
-            "👣 You follow the glowing footprints..."
-            "\n\n"
-            "They lead to a chicken."
-            "\n\n"
-            "The chicken looks disappointed."
-        )
-
-        xp = 20
-
-    # -----------------------------------------------------
-    # BOX
-    # -----------------------------------------------------
-
-    elif "box" in choice_lower:
-
-        item = "🥔 Mystery Potato"
-
-        event = (
-            "📦 You opened the mysterious box."
-            "\n\n"
-            "Inside: a potato."
-            "\n\n"
-            "Why was it locked inside a box?"
-            "\n\n"
-            "Nobody knows."
-        )
-
-        xp = 30
-
-    # -----------------------------------------------------
-    # PIZZA KING
-    # -----------------------------------------------------
-
-    elif "pizza king" in choice_lower:
-
-        event = (
-            "👑 The Pizza King challenges you."
-            "\n\n"
-            "Your weapon?"
-            "\n\n"
-            "A very suspicious slice of pizza."
-        )
-
-        xp = 30
-        coins = 8
-
-    # -----------------------------------------------------
-    # PIZZA CONTEST
-    # -----------------------------------------------------
-
-    elif "pizza contest" in choice_lower:
-
-        event = (
-            "🍕 You enter the pizza contest."
-            "\n\n"
-            "You don't win."
-            "\n\n"
-            "But you do leave with pizza."
-            "\n\n"
-            "So technically... victory."
-        )
-
-        item = "🍕 Emergency Pizza"
-
-        xp = 25
-
-    # -----------------------------------------------------
-    # GOLDEN PIZZA
-    # -----------------------------------------------------
-
-    elif "golden pizza" in choice_lower:
-
-        event = (
-            "🧀 You inspect the golden pizza."
-            "\n\n"
-            "It is not actually gold."
-            "\n\n"
-            "It's just covered in extremely expensive cheese."
-        )
-
-        coins = 10
-        xp = 25
-
-    # -----------------------------------------------------
-    # FROG CLASS
-    # -----------------------------------------------------
-
-    elif "frog class" in choice_lower:
-
-        event = (
-            "🎓 Professor Frog begins the lesson."
-            "\n\n"
-            "\"Ribbit.\""
-            "\n\n"
-            "Everyone takes notes."
-            "\n\n"
-            "You have no idea what happened."
-        )
-
-        xp = 30
-
-    # -----------------------------------------------------
-    # FROG QUIZ
-    # -----------------------------------------------------
-
-    elif "frog quiz" in choice_lower:
-
-        event = (
-            "🐸 The frog asks you one very serious question."
-            "\n\n"
-            "\"What sound does a frog make?\""
-            "\n\n"
-            "You somehow feel nervous."
-        )
-
-        xp = 20
-
-    # -----------------------------------------------------
-    # FROG QUESTION
-    # -----------------------------------------------------
-
-    elif "professor frog" in choice_lower:
-
-        event = (
-            "🐸 Professor Frog says:"
-            "\n\n"
-            "\"Never underestimate small steps.\""
-            "\n\n"
-            "Then he jumps away."
-        )
-
-        xp = 25
-
-    # -----------------------------------------------------
-    # ALIEN
-    # -----------------------------------------------------
-
-    elif "alien" in choice_lower:
-
-        event = (
-            "👽 The alien waiter studies you carefully."
-            "\n\n"
-            "\"Earth human... your curiosity is acceptable.\""
-            "\n\n"
-            "You have no idea whether that was a compliment."
-        )
-
-        xp = 35
-
-    # -----------------------------------------------------
-    # COSMIC COOKIES
-    # -----------------------------------------------------
-
-    elif "cosmic cookie" in choice_lower:
-
-        event = (
-            "🍪 You eat a cosmic cookie."
-            "\n\n"
-            "For three seconds, you understand the universe."
-            "\n\n"
-            "Then you forget everything."
-        )
-
-        item = "🍪 Cosmic Cookie"
-
-        xp = 30
-
-    # -----------------------------------------------------
-    # SPACE WINDOW
-    # -----------------------------------------------------
-
-    elif "window" in choice_lower:
-
-        event = (
-            "🔭 You look outside."
-            "\n\n"
-            "Earth looks tiny."
-            "\n\n"
-            "You suddenly feel very grateful for snacks."
-        )
-
-        xp = 25
-
-    # -----------------------------------------------------
-    # STATUE
-    # -----------------------------------------------------
-
-    elif "statue" in choice_lower:
-
-        event = (
-            "🗿 The statue moves."
-            "\n\n"
-            "You move."
-            "\n\n"
-            "The statue stops."
-            "\n\n"
-            "You stop."
-            "\n\n"
-            "This continues for an embarrassingly long time."
-        )
-
-        xp = 30
-
-    # -----------------------------------------------------
-    # PAINTING
-    # -----------------------------------------------------
-
-    elif "painting" in choice_lower:
-
-        event = (
-            "🖼️ You inspect the painting."
-            "\n\n"
-            "The person inside the painting is holding a pizza."
-            "\n\n"
-            "You respect this person immediately."
-        )
-
-        xp = 25
-
-    # -----------------------------------------------------
-    # SECRET DOOR
-    # -----------------------------------------------------
-
-    elif "secret door" in choice_lower:
-
-        event = (
-            "🚪 You discover a secret door."
-            "\n\n"
-            "You open it..."
-            "\n\n"
-            "It's another room."
-            "\n\n"
-            "Very secret. Very impressive."
-        )
-
-        xp = 30
-
-    # -----------------------------------------------------
-    # TRAPDOOR
-    # -----------------------------------------------------
-
-    elif "trapdoor" in choice_lower:
-
-        event = (
-            "🚪 You open the trapdoor."
-            "\n\n"
-            "A tiny wizard screams:"
-            "\n\n"
-            "\"I TOLD THEM THIS WAS A BAD IDEA!\""
-        )
-
-        xp = 35
-
-    # -----------------------------------------------------
-    # WIZARD
-    # -----------------------------------------------------
-
-    elif "wizard" in choice_lower:
-
-        event = (
-            "🧙 The wizard tries to cast a spell."
-            "\n\n"
-            "Nothing happens."
-            "\n\n"
-            "He says it was supposed to do that."
-        )
-
-        xp = 25
-
-    # -----------------------------------------------------
-    # CASTLE
-    # -----------------------------------------------------
-
-    elif "castle" in choice_lower:
-
-        event = (
-            "🔎 You search the castle."
-            "\n\n"
-            "You find 17 useless spoons."
-            "\n\n"
-            "This castle has serious problems."
-        )
-
-        item = "🥄 Suspicious Spoon"
-
-        xp = 20
-
-    # -----------------------------------------------------
-    # FALLBACK
-    # -----------------------------------------------------
-
-    else:
-
-        event = random.choice(
-            FUNNY_EVENTS
-        )[0]
-
-    return (
-        event,
-        xp,
-        coins,
-        item
-    )
-
-
-# =========================================================
-# AI SPECIAL EVENT
-#
-# AI IS USED ONLY SOMETIMES.
-# =========================================================
-
-def generate_ai_event(
-    adventure,
-    choice
-):
-
-    prompt = f"""
-The player is playing a funny adventure game.
-
-Location:
-{adventure.get("location")}
-
-Player choice:
-{choice}
-
-Create a VERY short funny reaction.
-
-Return only JSON:
-
-{{
-    "event": "2 or 3 short funny sentences",
-    "xp": 10,
-    "coins": 2,
-    "fact": ""
-}}
-
-Rules:
-
-- Easy English.
-- Make it genuinely funny.
-- Match the player's choice.
-- Do not write a long story.
-- Sometimes include a useful fact.
-- Most of the time fact should be empty.
-"""
-
-    result = ask_ai(
-        prompt
-    )
-
-    data = extract_json(
-        result
-    )
-
-    if not isinstance(
-        data,
-        dict
-    ):
-
-        return None
-
-    return data
-
-
-# =========================================================
-# PERFORM ACTION
-#
-# FAST BY DEFAULT.
-# AI ONLY EVERY FEW TURNS.
-# =========================================================
-
-def perform_action(
-    adventure,
-    choice
-):
-
-    if not isinstance(
-        adventure,
-        dict
-    ):
-
-        return "⚠️ Invalid adventure."
-
-    adventure.setdefault(
-        "history",
-        []
-    )
-
-    adventure.setdefault(
-        "inventory",
-        []
-    )
-
-    adventure.setdefault(
-        "health",
-        100
-    )
-
-    adventure.setdefault(
-        "coins",
-        0
-    )
-
-    adventure.setdefault(
-        "xp",
-        0
-    )
-
-    adventure.setdefault(
-        "turn",
-        1
-    )
-
-    adventure.setdefault(
-        "active",
-        True
-    )
-
-    adventure.setdefault(
-        "ai_used",
-        False
-    )
-
-    # -----------------------------------------------------
-    # HISTORY
-    # -----------------------------------------------------
-
-    adventure["history"].append(
-        {
-            "turn":
-                adventure["turn"],
-
-            "location":
-                adventure.get(
-                    "location",
-                    "Unknown"
-                ),
-
-            "choice":
-                choice
-        }
-    )
-
-    # -----------------------------------------------------
-    # SOMETIMES AI
-    #
-    # Every 4th turn only.
-    # -----------------------------------------------------
-
-    use_ai = (
-        adventure["turn"] % 4 == 0
-    )
-
-    if use_ai:
-
-        ai_result = generate_ai_event(
-            adventure,
-            choice
-        )
-
-        if ai_result:
-
-            event = str(
-                ai_result.get(
-                    "event",
-                    "Something strange happened."
-                )
-            )
-
-            xp = ai_result.get(
-                "xp",
-                20
-            )
-
-            coins = ai_result.get(
-                "coins",
-                3
-            )
-
-            fact = str(
-                ai_result.get(
-                    "fact",
-                    ""
-                )
-            )
-
-            try:
-
-                xp = int(xp)
-
-            except Exception:
-
-                xp = 20
-
-            try:
-
-                coins = int(coins)
-
-            except Exception:
-
-                coins = 3
-
-            xp = max(
-                5,
-                min(40, xp)
-            )
-
-            coins = max(
-                0,
-                min(10, coins)
-            )
-
-            adventure["xp"] += xp
-
-            adventure["coins"] += coins
-
-            adventure["last_event"] = (
-                f"🤖 **AI MOMENT!**\n\n"
-                f"{event}\n\n"
-                f"⭐ +{xp} XP\n"
-                f"🪙 +{coins} coins"
-            )
-
-            if fact:
-
-                adventure[
-                    "last_fact"
-                ] = fact
-
-                adventure[
-                    "last_event"
-                ] += (
-                    f"\n\n🧠 **You learned:**\n"
-                    f"{fact}"
-                )
-
-            else:
-
-                adventure[
-                    "last_fact"
-                ] = ""
-
-            adventure["turn"] += 1
-
-            next_location(
-                adventure
-            )
-
-            return adventure[
-                "last_event"
-            ]
-
-    # -----------------------------------------------------
-    # FAST NORMAL ACTION
-    # -----------------------------------------------------
-
-    event, xp, coins, item = normal_action(
-        adventure,
-        choice
-    )
-
-    adventure["xp"] += xp
-
-    adventure["coins"] += coins
-
-    adventure["last_event"] = (
-        f"{event}\n\n"
-        f"⭐ +{xp} XP\n"
-        f"🪙 +{coins} coins"
-    )
-
-    if item:
-
-        adventure[
-            "inventory"
-        ].append(item)
-
-        adventure[
-            "last_event"
-        ] += (
-            f"\n🎒 Found: {item}"
-        )
-
-    # -----------------------------------------------------
-    # RANDOM SMALL DAMAGE
-    # -----------------------------------------------------
-
-    if random.randint(
-        1,
-        100
-    ) <= 8:
-
-        damage = random.randint(
-            3,
-            8
-        )
-
-        adventure["health"] = max(
-            0,
-            adventure["health"]
-            - damage
-        )
-
-        adventure[
-            "last_event"
-        ] += (
-            f"\n😵 Oops! -{damage} HP"
-        )
-
-    # -----------------------------------------------------
-    # TURN
-    # -----------------------------------------------------
-
-    adventure["turn"] += 1
-
-    # -----------------------------------------------------
-    # NEW LOCATION
-    # -----------------------------------------------------
-
-    next_location(
-        adventure
-    )
-
-    # -----------------------------------------------------
-    # GAME OVER
-    # -----------------------------------------------------
-
-    if adventure["health"] <= 0:
-
-        adventure["active"] = False
-
-        adventure[
-            "last_event"
-        ] += (
-            "\n\n🏁 Adventure over!"
-        )
-
-    return adventure[
-        "last_event"
-    ]
-
-
-# =========================================================
-# KNOWLEDGE QUESTION
-#
-# AI is used here ONLY when specifically requested.
-# =========================================================
-
-def get_knowledge_question():
+def create_adventure():
+    """
+    Creates the first AI-generated adventure.
+    """
 
     prompt = """
-Create ONE easy and interesting general knowledge question.
+Create the opening scene of a dynamic RPG.
 
-Return ONLY JSON:
+Pick an interesting location from this list:
+
+Whispering Forest
+Pizza Kingdom
+Frog Academy
+Space Café
+Mystery Museum
+Castle of Bad Ideas
+Robot City
+Crystal Cave
+Sky Island
+Time Traveler Station
+
+Return ONLY valid JSON in this exact structure:
 
 {
-    "question": "question",
-    "options": [
+    "location": "location name",
+    "challenge": "short exciting challenge",
+    "description": "short description of what is happening",
+    "choices": [
         "option 1",
         "option 2",
         "option 3",
         "option 4"
-    ],
-    "answer": "correct option",
-    "fact": "one short interesting fact"
+    ]
 }
 
-Rules:
-- Easy English.
-- Exactly four options.
-- One correct answer.
-- Interesting for a student.
+Requirements:
+- Exactly 4 choices.
+- Every choice should be different.
+- Choices should be fun and meaningful.
+- Do not reveal which choice is best.
 """
 
-    result = ask_ai(
-        prompt
-    )
+    try:
+        response = ask_ai(prompt)
+        data = extract_json(response)
 
-    data = extract_json(
-        result
-    )
+        if data:
+            choices = data.get("choices", [])
 
-    if isinstance(
-        data,
-        dict
-    ):
+            if isinstance(choices, list) and len(choices) >= 3:
+                choices = choices[:4]
 
-        if (
-            "question" in data
-            and "options" in data
-            and "answer" in data
-        ):
+                adventure = {
+                    "location": data.get(
+                        "location",
+                        random.choice(LOCATIONS)
+                    ),
+                    "challenge": data.get(
+                        "challenge",
+                        "A mysterious challenge appears."
+                    ),
+                    "description": data.get(
+                        "description",
+                        "Something unusual is happening."
+                    ),
+                    "choices": choices,
+                    "history": [],
+                    "inventory": STARTER_ITEMS.copy(),
+                    "coins": 10,
+                    "health": 100,
+                    "xp": 0,
+                    "turn": 1,
+                    "active": True,
+                    "last_event": "",
+                    "last_result": "",
+                    "ai_used": True,
+                }
 
-            return data
+                return adventure
 
-    # -----------------------------------------------------
-    # FAST FALLBACK
-    # -----------------------------------------------------
+    except Exception as e:
+        print("Ollama create error:", e)
+
+    fallback = fallback_adventure()
 
     return {
-        "question":
-            "Which planet is known as the Red Planet?",
-
-        "options": [
-            "Mars",
-            "Venus",
-            "Jupiter",
-            "Mercury"
-        ],
-
-        "answer":
-            "Mars",
-
-        "fact":
-            "Mars looks red because its surface contains iron-rich dust."
+        "location": fallback["location"],
+        "challenge": fallback["challenge"],
+        "description": fallback["description"],
+        "choices": fallback["choices"],
+        "history": [],
+        "inventory": STARTER_ITEMS.copy(),
+        "coins": 10,
+        "health": 100,
+        "xp": 0,
+        "turn": 1,
+        "active": True,
+        "last_event": "",
+        "last_result": "",
+        "ai_used": False,
     }
 
 
 # =========================================================
-# CHECK KNOWLEDGE ANSWER
+# GENERATE NEXT AI CHALLENGE
 # =========================================================
 
-def check_knowledge_answer(
-    adventure,
-    answer
-):
+def generate_ai_event(adventure, choice):
+    """
+    Ollama processes the player's choice and creates
+    the result + next challenge.
+    """
 
-    question = adventure.get(
-        "knowledge_question"
+    history_text = "\n".join(
+        [
+            f"Turn {item.get('turn')}: "
+            f"{item.get('choice')} -> "
+            f"{item.get('result')}"
+            for item in adventure.get("history", [])[-5:]
+        ]
     )
 
-    if not question:
+    inventory_text = ", ".join(
+        adventure.get("inventory", [])
+    )
 
-        return False, 0, 0
+    prompt = f"""
+You are continuing a dynamic RPG.
 
-    correct = (
-        answer
-        == question.get(
-            "answer"
+CURRENT GAME STATE:
+
+Location:
+{adventure.get("location")}
+
+Current challenge:
+{adventure.get("challenge")}
+
+Current description:
+{adventure.get("description")}
+
+Player selected:
+{choice}
+
+Health:
+{adventure.get("health")}
+
+XP:
+{adventure.get("xp")}
+
+Coins:
+{adventure.get("coins")}
+
+Inventory:
+{inventory_text}
+
+Recent history:
+{history_text}
+
+Now decide what happens because of the player's choice.
+
+Then create the NEXT challenge.
+
+You may:
+- Reward XP.
+- Give coins.
+- Remove coins.
+- Add an item.
+- Remove health.
+- Restore health.
+- Move the player to another location.
+- Keep the same location.
+- Create a funny event.
+- Create a mystery.
+- Create a puzzle-like challenge.
+- Create a discovery.
+- Create a social situation.
+
+Keep everything safe and game-like.
+
+Return ONLY valid JSON:
+
+{{
+    "result": "what happened because of the player's choice",
+    "event": "short exciting event message",
+    "xp_change": 10,
+    "coin_change": 5,
+    "health_change": 0,
+    "item_add": "",
+    "item_remove": "",
+    "next_location": "location name",
+    "next_challenge": "the next challenge",
+    "next_description": "short description",
+    "next_choices": [
+        "choice 1",
+        "choice 2",
+        "choice 3",
+        "choice 4"
+    ],
+    "game_over": false
+}}
+
+Important:
+- next_choices must contain exactly 4 choices.
+- Choices must be meaningfully different.
+- Do not tell the player which choice is correct.
+- xp_change should normally be between -5 and 30.
+- coin_change should normally be between -10 and 30.
+- health_change should normally be between -15 and 20.
+- Do not create real-world dangerous instructions.
+"""
+
+    try:
+        response = ask_ai(prompt)
+        data = extract_json(response)
+
+        if data:
+            choices = data.get("next_choices", [])
+
+            if isinstance(choices, list) and len(choices) >= 3:
+
+                return {
+                    "result": str(
+                        data.get(
+                            "result",
+                            "Your choice changes the adventure."
+                        )
+                    ),
+                    "event": str(
+                        data.get(
+                            "event",
+                            "Something unexpected happens!"
+                        )
+                    ),
+                    "xp_change": safe_int(
+                        data.get("xp_change", 5),
+                        5
+                    ),
+                    "coin_change": safe_int(
+                        data.get("coin_change", 0),
+                        0
+                    ),
+                    "health_change": safe_int(
+                        data.get("health_change", 0),
+                        0
+                    ),
+                    "item_add": str(
+                        data.get("item_add", "")
+                    ).strip(),
+                    "item_remove": str(
+                        data.get("item_remove", "")
+                    ).strip(),
+                    "next_location": str(
+                        data.get(
+                            "next_location",
+                            adventure.get("location")
+                        )
+                    ),
+                    "next_challenge": str(
+                        data.get(
+                            "next_challenge",
+                            "A new challenge appears."
+                        )
+                    ),
+                    "next_description": str(
+                        data.get(
+                            "next_description",
+                            "Something unexpected is happening."
+                        )
+                    ),
+                    "next_choices": choices[:4],
+                    "game_over": bool(
+                        data.get("game_over", False)
+                    ),
+                }
+
+    except Exception as e:
+        print("Ollama event error:", e)
+
+    return fallback_result(adventure, choice)
+
+
+# =========================================================
+# SAFE INTEGER
+# =========================================================
+
+def safe_int(value, default=0):
+
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
+# =========================================================
+# FALLBACK RESULT
+# =========================================================
+
+def fallback_result(adventure, choice):
+
+    events = [
+        "A strange sound echoes around you.",
+        "You discover something unexpected.",
+        "A mysterious clue appears.",
+        "The world around you suddenly becomes interesting.",
+        "You successfully handle the situation.",
+    ]
+
+    location = random.choice(LOCATIONS)
+
+    return {
+        "result": f"You chose: {choice}",
+        "event": random.choice(events),
+        "xp_change": random.randint(5, 15),
+        "coin_change": random.randint(0, 10),
+        "health_change": 0,
+        "item_add": "",
+        "item_remove": "",
+        "next_location": location,
+        "next_challenge": (
+            "A mysterious new challenge appears."
+        ),
+        "next_description": (
+            "You have reached a new part of the adventure."
+        ),
+        "next_choices": [
+            "Investigate",
+            "Look for clues",
+            "Try something creative",
+            "Wait and observe",
+        ],
+        "game_over": False,
+    }
+
+
+# =========================================================
+# PERFORM ACTION
+# =========================================================
+
+def perform_action(adventure, choice):
+    """
+    Main function called by app.py when player presses
+    an action button.
+    """
+
+    if not adventure.get("active", True):
+        return adventure
+
+    # Save old turn
+    current_turn = adventure.get("turn", 1)
+
+    # Ask Ollama what happens
+    result = generate_ai_event(
+        adventure,
+        choice
+    )
+
+    # -----------------------------------------
+    # Save history
+    # -----------------------------------------
+
+    adventure.setdefault("history", [])
+
+    adventure["history"].append(
+        {
+            "turn": current_turn,
+            "choice": choice,
+            "result": result["result"],
+            "event": result["event"],
+        }
+    )
+
+    # -----------------------------------------
+    # Update stats
+    # -----------------------------------------
+
+    adventure["xp"] = max(
+        0,
+        adventure.get("xp", 0)
+        + result["xp_change"]
+    )
+
+    adventure["coins"] = max(
+        0,
+        adventure.get("coins", 0)
+        + result["coin_change"]
+    )
+
+    adventure["health"] = min(
+        100,
+        max(
+            0,
+            adventure.get("health", 100)
+            + result["health_change"]
         )
     )
 
-    if correct:
+    # -----------------------------------------
+    # Inventory
+    # -----------------------------------------
 
-        xp = 50
-        coins = 10
+    item_add = result.get("item_add", "").strip()
 
-        adventure[
-            "knowledge_correct"
-        ] = True
+    if item_add:
+        if item_add not in adventure["inventory"]:
+            adventure["inventory"].append(item_add)
 
-        adventure[
-            "last_fact"
-        ] = question.get(
-            "fact",
-            ""
-        )
+    item_remove = result.get("item_remove", "").strip()
 
-    else:
+    if item_remove:
+        if item_remove in adventure["inventory"]:
+            adventure["inventory"].remove(item_remove)
 
-        xp = 15
-        coins = 2
+    # -----------------------------------------
+    # Save result
+    # -----------------------------------------
 
-        adventure[
-            "knowledge_correct"
-        ] = False
+    adventure["last_result"] = result["result"]
+    adventure["last_event"] = result["event"]
 
-        adventure[
-            "last_fact"
-        ] = (
-            f"💡 Correct answer: "
-            f"{question.get('answer')}\n\n"
-            f"{question.get('fact', '')}"
-        )
+    # -----------------------------------------
+    # Next challenge
+    # -----------------------------------------
 
-    adventure[
-        "knowledge_answered"
-    ] = True
+    adventure["location"] = result["next_location"]
 
-    adventure["xp"] += xp
+    adventure["challenge"] = result["next_challenge"]
 
-    adventure["coins"] += coins
+    adventure["description"] = result["next_description"]
 
-    return (
-        correct,
-        xp,
-        coins
-    )
+    adventure["choices"] = result["next_choices"]
+
+    adventure["turn"] = current_turn + 1
+
+    # -----------------------------------------
+    # Game over
+    # -----------------------------------------
+
+    if result.get("game_over", False):
+        adventure["active"] = False
+
+    if adventure["health"] <= 0:
+        adventure["health"] = 0
+        adventure["active"] = False
+
+    return adventure
